@@ -19,12 +19,32 @@ def SIMD(f):
 
 # Generic decorator that calls a function named 'condition' on the test class and
 # skips the test if that function returns true
-def skip_if(func, condition, explanation=''):
+unexpected_successes = {}
+expected_fails = {}
+def skip_if(func, condition, explanation='', do_run=False):
   explanation_str = ' : %s' % explanation if explanation else ''
+  if explanation not in expected_fails:
+    expected_fails[explanation] = []
+  expected_fails[explanation].append(func)
   def decorated(self):
-    if self.__getattribute__(condition)():
+    if not self.__getattribute__(condition)():
+      return func(self)
+    if not do_run:
       return self.skip(condition + explanation_str)
-    return func(self)
+
+    def catchy(self):
+      global unexpected_successes
+      failed = False
+      try:
+        func(self)
+      except:
+        failed = True
+        print "Expected failure " + condition + explanation_str
+      if not failed:
+        if explanation not in unexpected_successes:
+          unexpected_successes[explanation] = []
+        unexpected_successes[explanation].append(func)
+    catchy(self)
   return decorated
 
 def no_emterpreter(f):
@@ -33,10 +53,18 @@ def no_emterpreter(f):
 def no_wasm(f):
   return skip_if(f, 'is_wasm')
 
+annotated_functions = set()
 def no_wasm_backend(note=''):
   def decorated(f):
-    return skip_if(f, 'is_wasm_backend', note)
+    annotated_functions.add(f.__name__)
+    return skip_if(f, 'is_wasm_backend', explanation=note, do_run=True)
   return decorated
+
+
+def long_test(f):
+  def no(self):
+    return self.skip(f.__name__ + ' takes too long to run.')
+  return no
 
 
 class T(RunnerCore): # Short name, to make it more fun to use manually on the commandline
@@ -1749,6 +1777,7 @@ int main() {
   def test_cxx03_do_run(self):
     self.do_run_in_out_file_test('tests', 'core', 'test_cxx03_do_run')
 
+  @long_test
   @no_emterpreter
   def test_bigswitch(self):
     src = open(path_from_root('tests', 'bigswitch.cpp')).read()
@@ -1758,6 +1787,7 @@ int main() {
 3060: what?
 ''', args=['34962', '26214', '35040', str(0xbf4)])
 
+  @long_test
   @no_emterpreter
   def test_biggerswitch(self):
     num_cases = 20000
