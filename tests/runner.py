@@ -1032,6 +1032,10 @@ if __name__ == '__main__':
     for s in suites:
       if hasattr(m, s):
         tests = filter(lambda t: t.startswith('test_'), dir(getattr(m, s)))
+        def proctest(t):
+          import test_core
+          return t in test_core.annotated_functions
+        tests = filter(proctest, tests)
         all_tests += map(lambda t: s + '.' + t, tests)
 
   # Process wildcards, e.g. "browser.test_pthread_*" should expand to list all pthread tests
@@ -1165,6 +1169,32 @@ if __name__ == '__main__':
     print 'TEST SUMMARY'
     for msg in resultMessages:
       print '    ' + msg
+
+  import test_core
+  print_expected_fails = True
+  print_expected_tests = True
+  if print_expected_fails:
+    print '===================='
+    print
+    print 'EXPECTED FAILURES'
+    fails = test_core.expected_fails.items()
+    fails = sorted(fails, key=lambda t: -len(t[1]))
+    for i in xrange(len(fails)):
+      explanation, tests = fails[i]
+      explanation_str = explanation or '[no description]'
+      print '  #' + str(i+1) + ' | ' + str(len(tests)) + '> ' + explanation_str + ':'
+      if print_expected_tests:
+        for t in tests:
+          print '      ' + t.__name__
+
+  if len(test_core.unexpected_successes) > 0:
+    print '===================='
+    print
+    print 'UNEXPECTED SUCCESSES'
+    for explanation, tests in test_core.unexpected_successes.iteritems():
+      print '  - ' + explanation + ' (' + str(len(tests)) + '):'
+      for t in tests:
+        print '      ' + t.__name__
 
   # Return the number of failures as the process exit code for automating success/failure reporting.
   exitcode = min(numFailures, 255)
