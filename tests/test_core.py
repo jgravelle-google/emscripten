@@ -228,7 +228,8 @@ class T(RunnerCore): # Short name, to make it more fun to use manually on the co
   def test_literal_negative_zero(self):
     self.do_run_in_out_file_test('tests', 'core', 'test_literal_negative_zero')
 
-  @no_wasm_backend('todo')
+  @no_wasm_backend('fastcomp handles these llvm intrinsics in software, wasm backend '
+                   'lowers them to wasm (e.g. llvm_ctlz_i32 -> i32.clz)')
   def test_llvm_intrinsics(self):
     Settings.PRECISE_I64_MATH = 2 # for bswap64
 
@@ -1270,7 +1271,7 @@ int main() {
   def test_complex(self):
     self.do_run_in_out_file_test('tests', 'core', 'test_complex', force_c=True)
 
-  @no_wasm_backend("wasm backend doesn't add Runtime.setDynamicTop and crashes")
+  @no_wasm_backend("wasm backend doesn't support the SAFE_HEAP setting")
   def test_segfault(self):
     Settings.SAFE_HEAP = 1
 
