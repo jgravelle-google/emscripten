@@ -22,6 +22,7 @@ def SIMD(f):
 unexpected_successes = {}
 expected_fails = {}
 def skip_if(func, condition, explanation='', do_run=False):
+  force_failure = True
   explanation_str = ' : %s' % explanation if explanation else ''
   if explanation not in expected_fails:
     expected_fails[explanation] = []
@@ -40,6 +41,8 @@ def skip_if(func, condition, explanation='', do_run=False):
       except:
         failed = True
         print "Expected failure " + condition + explanation_str
+        if force_failure:
+          raise
       if not failed:
         if explanation not in unexpected_successes:
           unexpected_successes[explanation] = []
@@ -5289,6 +5292,7 @@ return malloc(size);
     return self.get_library('freetype',
                             os.path.join('objs', '.libs', 'libfreetype.a'))
 
+  @long_test
   @no_wasm_backend()
   def test_freetype(self):
     if WINDOWS: return self.skip('test_freetype uses a ./configure script to build and therefore currently only runs on Linux and OS X.')
@@ -5373,6 +5377,7 @@ def process(filename):
                  includes=[path_from_root('tests', 'sqlite')],
                  force_c=True)
 
+  @long_test
   def test_zlib(self):
     if '-O2' in self.emcc_args and 'ASM_JS=0' not in self.emcc_args and not self.is_wasm(): # without asm, closure minifies Math.imul badly
       self.emcc_args += ['--closure', '1'] # Use closure here for some additional coverage
@@ -5433,6 +5438,7 @@ def process(filename):
         assert old.count('tempBigInt') > new.count('tempBigInt')
 
   @sync
+  @long_test
   @no_wasm_backend()
   def test_poppler(self):
     if WINDOWS: return self.skip('test_poppler depends on freetype, which uses a ./configure script to build and therefore currently only runs on Linux and OS X.')
@@ -6381,6 +6387,7 @@ def process(filename):
     self.do_run(src, '107')
 
   @sync
+  @long_test
   @no_wasm_backend()
   def test_scriptaclass(self):
       Settings.EXPORT_BINDINGS = 1

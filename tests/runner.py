@@ -1170,31 +1170,33 @@ if __name__ == '__main__':
     for msg in resultMessages:
       print '    ' + msg
 
-  import test_core
   print_expected_fails = True
   print_expected_tests = True
-  if print_expected_fails:
-    print '===================='
-    print
-    print 'EXPECTED FAILURES'
-    fails = test_core.expected_fails.items()
+  print_section = 1
+  def print_dict(test_dict):
+    fails = test_dict.items()
     fails = sorted(fails, key=lambda t: -len(t[1]))
     for i in xrange(len(fails)):
       explanation, tests = fails[i]
       explanation_str = explanation or '[no description]'
       print '  #' + str(i+1) + ' | ' + str(len(tests)) + '> ' + explanation_str + ':'
-      if print_expected_tests:
+      if print_expected_tests and (print_section <= 0 or i+1 == print_section):
+        tests = sorted(tests, key=lambda t: t.__name__)
         for t in tests:
           print '      ' + t.__name__
+
+  import test_core
+  if print_expected_fails:
+    print '===================='
+    print
+    print 'EXPECTED FAILURES'
+    print_dict(test_core.expected_fails)
 
   if len(test_core.unexpected_successes) > 0:
     print '===================='
     print
     print 'UNEXPECTED SUCCESSES'
-    for explanation, tests in test_core.unexpected_successes.iteritems():
-      print '  - ' + explanation + ' (' + str(len(tests)) + '):'
-      for t in tests:
-        print '      ' + t.__name__
+    print_dict(test_core.unexpected_successes)
 
   # Return the number of failures as the process exit code for automating success/failure reporting.
   exitcode = min(numFailures, 255)
