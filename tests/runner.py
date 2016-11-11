@@ -1170,7 +1170,7 @@ if __name__ == '__main__':
     for msg in resultMessages:
       print '    ' + msg
 
-  print_expected_fails = True
+  print_expected_fails = False
   print_expected_tests = True
   print_section = 1
   def print_dict(test_dict):
