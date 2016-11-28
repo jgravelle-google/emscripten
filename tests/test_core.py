@@ -24,13 +24,14 @@ expected_fails = {}
 def skip_if(func, condition, explanation='', do_run=False):
   force_failure = True
   explanation_str = ' : %s' % explanation if explanation else ''
-  if explanation not in expected_fails:
-    expected_fails[explanation] = []
-  expected_fails[explanation].append(func)
+  if condition == 'is_wasm_backend':
+    if explanation not in expected_fails:
+      expected_fails[explanation] = []
+    expected_fails[explanation].append(func)
   def decorated(self):
     if not self.__getattribute__(condition)():
       return func(self)
-    if not do_run:
+    if not do_run or condition != 'is_wasm_backend':
       return self.skip(condition + explanation_str)
 
     def catchy(self):

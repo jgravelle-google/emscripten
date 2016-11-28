@@ -1172,7 +1172,7 @@ if __name__ == '__main__':
 
   print_expected_fails = False
   print_expected_tests = True
-  print_section = 1
+  print_section = -1
   def print_dict(test_dict):
     fails = test_dict.items()
     fails = sorted(fails, key=lambda t: -len(t[1]))
