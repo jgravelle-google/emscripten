@@ -2101,7 +2101,7 @@ The current type of b is: 9
     src = open(path_from_root('tests', 'termios', 'test_tcgetattr.c'), 'r').read()
     self.do_run(src, 'success', force_c=True)
 
-  @no_wasm_backend('ctime relies on stackSave/stackRestore that is only generated in asmjs; '
+  @no_wasm_backend('relies on stackSave/stackRestore that is only generated in asmjs; '
                    'need to implement something similar in s2wasm')
   def test_time(self):
     src = open(path_from_root('tests', 'time', 'src.cpp'), 'r').read()
@@ -2112,7 +2112,7 @@ The current type of b is: 9
     # Confirms they are called in reverse order
     self.do_run_in_out_file_test('tests', 'core', 'test_timeb')
 
-  @no_wasm_backend('ctime relies on stackSave/stackRestore that is only generated in asmjs; '
+  @no_wasm_backend('relies on stackSave/stackRestore that is only generated in asmjs; '
                    'need to implement something similar in s2wasm')
   def test_time_c(self):
     self.do_run_in_out_file_test('tests', 'core', 'test_time_c')
@@ -5825,42 +5825,15 @@ def process(filename):
   ### Integration tests
 
   @sync
-  @no_wasm_backend()
+  @no_wasm_backend('relies on stackSave/stackRestore that is only generated in asmjs; '
+                   'need to implement something similar in s2wasm')
   def test_ccall(self):
+    post_js = open(path_from_root('tests', 'core', 'test_ccall_post.js'), 'r').read()
     post = '''
 def process(filename):
-  src = open(filename, 'r').read() + \'\'\'
-      Module.print('*');
-      var ret;
-      ret = Module['ccall']('get_int', 'number'); Module.print([typeof ret, ret].join(','));
-      ret = ccall('get_float', 'number'); Module.print([typeof ret, ret.toFixed(2)].join(','));
-      ret = ccall('get_string', 'string'); Module.print([typeof ret, ret].join(','));
-      ret = ccall('print_int', null, ['number'], [12]); Module.print(typeof ret);
-      ret = ccall('print_float', null, ['number'], [14.56]); Module.print(typeof ret);
-      ret = ccall('print_string', null, ['string'], ["cheez"]); Module.print(typeof ret);
-      ret = ccall('print_string', null, ['array'], [[97, 114, 114, 45, 97, 121, 0]]); Module.print(typeof ret); // JS array
-      ret = ccall('print_string', null, ['array'], [new Uint8Array([97, 114, 114, 45, 97, 121, 0])]); Module.print(typeof ret); // typed array
-      ret = ccall('multi', 'number', ['number', 'number', 'number', 'string'], [2, 1.4, 3, 'more']); Module.print([typeof ret, ret].join(','));
-      var p = ccall('malloc', 'pointer', ['number'], [4]);
-      setValue(p, 650, 'i32');
-      ret = ccall('pointer', 'pointer', ['pointer'], [p]); Module.print([typeof ret, getValue(ret, 'i32')].join(','));
-      Module.print('*');
-      // part 2: cwrap
-      var noThirdParam = Module['cwrap']('get_int', 'number');
-      Module.print(noThirdParam());
-      var multi = Module['cwrap']('multi', 'number', ['number', 'number', 'number', 'string']);
-      Module.print(multi(2, 1.4, 3, 'atr'));
-      Module.print(multi(8, 5.4, 4, 'bret'));
-      Module.print('*');
-      // part 3: avoid stack explosion and check it's restored correctly
-      for (var i = 0; i < TOTAL_STACK/60; i++) {
-        ccall('multi', 'number', ['number', 'number', 'number', 'string'], [0, 0, 0, '123456789012345678901234567890123456789012345678901234567890']);
-      }
-      Module.print('stack is ok.');
-      ccall('call_ccall_again', null);
-  \'\'\'
+  src = open(filename, 'r').read() + \'\'\'%s\'\'\'
   open(filename, 'w').write(src)
-'''
+''' % post_js
 
     Settings.EXPORTED_FUNCTIONS += ['_get_int', '_get_float', '_get_string', '_print_int', '_print_float', '_print_string', '_multi', '_pointer', '_call_ccall_again', '_malloc']
     self.do_run_in_out_file_test('tests', 'core', 'test_ccall', post_build=post)
