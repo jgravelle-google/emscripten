@@ -71,10 +71,11 @@ def sync(f):
     f(self)
   return decorated
 
+skip_long_tests = True
 def long_test(f):
   def no(self):
     return self.skip(f.__name__ + ' takes too long to run.')
-  return no
+  return no if skip_long_tests else f
 
 
 class T(RunnerCore): # Short name, to make it more fun to use manually on the commandline

@@ -1192,11 +1192,11 @@ if __name__ == '__main__':
     print 'EXPECTED FAILURES'
     print_dict(test_core.expected_fails)
 
-  if len(test_core.unexpected_successes) > 0:
-    print '===================='
-    print
-    print 'UNEXPECTED SUCCESSES'
-    print_dict(test_core.unexpected_successes)
+    if len(test_core.unexpected_successes) > 0:
+      print '===================='
+      print
+      print 'UNEXPECTED SUCCESSES'
+      print_dict(test_core.unexpected_successes)
 
   # Return the number of failures as the process exit code for automating success/failure reporting.
   exitcode = min(numFailures, 255)
