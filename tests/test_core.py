@@ -71,11 +71,13 @@ def sync(f):
     f(self)
   return decorated
 
-skip_long_tests = True
-def long_test(f):
-  def no(self):
-    return self.skip(f.__name__ + ' takes too long to run.')
-  return no if skip_long_tests else f
+skip_long_test_threshold = 60
+def long_test(num_seconds=60):
+  def wrapper(f):
+    def no(self):
+      return self.skip(f.__name__ + ' takes too long to run (approx. {} seconds)'.format(num_seconds))
+    return no if skip_long_test_threshold <= num_seconds else f
+  return wrapper
 
 
 class T(RunnerCore): # Short name, to make it more fun to use manually on the commandline
@@ -1785,7 +1787,7 @@ int main() {
   def test_cxx03_do_run(self):
     self.do_run_in_out_file_test('tests', 'core', 'test_cxx03_do_run')
 
-  @long_test
+  @long_test()
   @no_emterpreter
   def test_bigswitch(self):
     src = open(path_from_root('tests', 'bigswitch.cpp')).read()
@@ -1795,7 +1797,7 @@ int main() {
 3060: what?
 ''', args=['34962', '26214', '35040', str(0xbf4)])
 
-  @long_test
+  @long_test()
   @no_emterpreter
   def test_biggerswitch(self):
     num_cases = 20000
@@ -5295,7 +5297,7 @@ return malloc(size);
     return self.get_library('freetype',
                             os.path.join('objs', '.libs', 'libfreetype.a'))
 
-  @long_test
+  @long_test()
   @no_wasm_backend()
   def test_freetype(self):
     if WINDOWS: return self.skip('test_freetype uses a ./configure script to build and therefore currently only runs on Linux and OS X.')
@@ -5380,7 +5382,7 @@ def process(filename):
                  includes=[path_from_root('tests', 'sqlite')],
                  force_c=True)
 
-  @long_test
+  @long_test()
   def test_zlib(self):
     if '-O2' in self.emcc_args and 'ASM_JS=0' not in self.emcc_args and not self.is_wasm(): # without asm, closure minifies Math.imul badly
       self.emcc_args += ['--closure', '1'] # Use closure here for some additional coverage
@@ -5441,7 +5443,7 @@ def process(filename):
         assert old.count('tempBigInt') > new.count('tempBigInt')
 
   @sync
-  @long_test
+  @long_test()
   @no_wasm_backend()
   def test_poppler(self):
     if WINDOWS: return self.skip('test_poppler depends on freetype, which uses a ./configure script to build and therefore currently only runs on Linux and OS X.')
@@ -6342,7 +6344,7 @@ def process(filename):
     self.do_run(src, '107')
 
   @sync
-  @long_test
+  @long_test(275)
   @no_wasm_backend()
   def test_scriptaclass(self):
       Settings.EXPORT_BINDINGS = 1
