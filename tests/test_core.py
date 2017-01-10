@@ -1532,7 +1532,7 @@ int main() {
 
     self.do_run_in_out_file_test('tests', 'core', 'test_set_align')
 
-  @no_wasm_backend('printf is incorrectly handling float values')
+  @no_wasm_backend()
   def test_emscripten_api(self):
       check = '''
 def process(filename):
@@ -3867,7 +3867,7 @@ Have even and odd!
 '''
     self.do_run(src, expected)
 
-  @no_wasm_backend('printf is incorrectly handling float values')
+  @no_wasm_backend()
   def test_strtod(self):
     src = r'''
       #include <stdio.h>
@@ -4428,7 +4428,7 @@ def process(filename):
     Building.COMPILER_TEST_OPTS += ['--embed-file', path_from_root('tests/utf16_corpus.txt')+ '@/utf16_corpus.txt']
     self.do_run(open(path_from_root('tests', 'benchmark_utf16.cpp')).read(), 'OK.')
 
-  @no_wasm_backend('printf is incorrectly handling float values')
+  @no_wasm_backend()
   def test_wprintf(self):
     test_path = path_from_root('tests', 'core', 'test_wprintf')
     src, output = (test_path + s for s in ('.cpp', '.out'))
