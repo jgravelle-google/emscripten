@@ -6588,7 +6588,8 @@ Child2:9
 ''', post_build=(post2, post3))
 
   @sync
-  @no_wasm_backend()
+  @no_wasm_backend('relies on stackSave/stackRestore that is only generated in asmjs; '
+                   'need to implement something similar in s2wasm')
   def test_scriptaclass_2(self):
       Settings.EXPORT_BINDINGS = 1
 
