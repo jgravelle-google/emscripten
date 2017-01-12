@@ -1532,7 +1532,6 @@ int main() {
 
     self.do_run_in_out_file_test('tests', 'core', 'test_set_align')
 
-  @no_wasm_backend()
   def test_emscripten_api(self):
       check = '''
 def process(filename):
@@ -5297,7 +5296,6 @@ return malloc(size);
                             os.path.join('objs', '.libs', 'libfreetype.a'))
 
   @long_test(60)
-  @no_wasm_backend()
   def test_freetype(self):
     if WINDOWS: return self.skip('test_freetype uses a ./configure script to build and therefore currently only runs on Linux and OS X.')
     assert 'asm2g' in test_modes
@@ -5443,7 +5441,6 @@ def process(filename):
 
   @sync
   @long_test(260)
-  @no_wasm_backend()
   def test_poppler(self):
     if WINDOWS: return self.skip('test_poppler depends on freetype, which uses a ./configure script to build and therefore currently only runs on Linux and OS X.')
 
