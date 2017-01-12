@@ -76,7 +76,7 @@ def long_test(num_seconds=60):
   def wrapper(f):
     def no(self):
       return self.skip(f.__name__ + ' takes too long to run (approx. {} seconds)'.format(num_seconds))
-    return no if skip_long_test_threshold <= num_seconds else f
+    return no if (skip_long_test_threshold > 0 and skip_long_test_threshold <= num_seconds) else f
   return wrapper
 
 
@@ -5296,7 +5296,7 @@ return malloc(size);
     return self.get_library('freetype',
                             os.path.join('objs', '.libs', 'libfreetype.a'))
 
-  @long_test()
+  @long_test(60)
   @no_wasm_backend()
   def test_freetype(self):
     if WINDOWS: return self.skip('test_freetype uses a ./configure script to build and therefore currently only runs on Linux and OS X.')
@@ -5442,7 +5442,7 @@ def process(filename):
         assert old.count('tempBigInt') > new.count('tempBigInt')
 
   @sync
-  @long_test()
+  @long_test(260)
   @no_wasm_backend()
   def test_poppler(self):
     if WINDOWS: return self.skip('test_poppler depends on freetype, which uses a ./configure script to build and therefore currently only runs on Linux and OS X.')
@@ -6342,7 +6342,7 @@ def process(filename):
     self.do_run(src, '107')
 
   @sync
-  @long_test(275)
+  @long_test(400)
   @no_wasm_backend()
   def test_scriptaclass(self):
       Settings.EXPORT_BINDINGS = 1
