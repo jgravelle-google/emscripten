@@ -5936,7 +5936,6 @@ def process(filename):
     shutil.move(self.in_dir('src.cpp.o.js'), self.in_dir('pgoed2.js'))
     assert open('pgoed.js').read() == open('pgoed2.js').read()
 
-  @no_wasm_backend('requires EM_ASM args support in wasm backend')
   def test_exported_response(self):
     src = r'''
       #include <stdio.h>
@@ -5960,7 +5959,6 @@ def process(filename):
     self.do_run(src, '''waka 5!''')
     assert 'other_function' in open('src.cpp.o.js').read()
 
-  @no_wasm_backend('requires EM_ASM args support in wasm backend')
   def test_large_exported_response(self):
     src = r'''
       #include <stdio.h>
