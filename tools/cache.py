@@ -37,7 +37,7 @@ class Cache:
     self.acquired_count = 0
 
   def acquire_cache_lock(self):
-    if not self.EM_EXCLUSIVE_CACHE_ACCESS and self.acquired_count == 0:
+    if not self.EM_EXCLUSIVE_CACHE_ACCESS:
       logging.debug('Cache: PID %s acquiring multiprocess file lock to Emscripten cache' % str(os.getpid()))
       try:
         self.filelock.acquire(60)
@@ -47,18 +47,20 @@ class Cache:
         logging.warning('Accessing the Emscripten cache at "' + self.dirname + '" is taking a long time, another process should be writing to it. If there are none and you suspect this process has deadlocked, try deleting the lock file "' + self.filelock_name + '" and try again. If this occurs deterministically, consider filing a bug.')
         self.filelock.acquire()
 
-      self.prev_EM_EXCLUSIVE_CACHE_ACCESS = os.environ.get('EM_EXCLUSIVE_CACHE_ACCESS')
-      os.environ['EM_EXCLUSIVE_CACHE_ACCESS'] = '1'
+      if self.acquired_count == 0:
+        self.prev_EM_EXCLUSIVE_CACHE_ACCESS = os.environ.get('EM_EXCLUSIVE_CACHE_ACCESS')
+        os.environ['EM_EXCLUSIVE_CACHE_ACCESS'] = '1'
+      self.acquired_count += 1
       logging.debug('Cache: done')
-    self.acquired_count += 1
 
   def release_cache_lock(self):
-    if not self.EM_EXCLUSIVE_CACHE_ACCESS and self.acquired_count == 1:
-      if self.prev_EM_EXCLUSIVE_CACHE_ACCESS: os.environ['EM_EXCLUSIVE_CACHE_ACCESS'] = self.prev_EM_EXCLUSIVE_CACHE_ACCESS
-      else: del os.environ['EM_EXCLUSIVE_CACHE_ACCESS']
+    if not self.EM_EXCLUSIVE_CACHE_ACCESS:
+      if self.acquired_count == 1:
+        if self.prev_EM_EXCLUSIVE_CACHE_ACCESS: os.environ['EM_EXCLUSIVE_CACHE_ACCESS'] = self.prev_EM_EXCLUSIVE_CACHE_ACCESS
+        else: del os.environ['EM_EXCLUSIVE_CACHE_ACCESS']
       self.filelock.release()
+      self.acquired_count = max(self.acquired_count - 1, 0)
       logging.debug('Cache: PID %s released multiprocess file lock to Emscripten cache' % str(os.getpid()))
-    self.acquired_count = max(self.acquired_count - 1, 0)
 
   def ensure(self):
     self.acquire_cache_lock()
