@@ -41,13 +41,13 @@ long __syscall_ret(unsigned long), __syscall(syscall_arg_t, ...),
 #endif
 #define __syscall7(n,a,b,c,d,e,f,g) (__syscall)(n,__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f),__scc(g))
 #else // __EMSCRIPTEN__
-#define __syscall_emscripten0(n) __syscall##n(0, 0, 0, 0, 0, 0, 0)
-#define __syscall_emscripten1(n,a) __syscall##n(__scc(a), 0, 0, 0, 0, 0, 0)
-#define __syscall_emscripten2(n,a,b) __syscall##n(__scc(a),__scc(b), 0, 0, 0, 0, 0)
-#define __syscall_emscripten3(n,a,b,c) __syscall##n(__scc(a),__scc(b),__scc(c), 0, 0, 0, 0)
-#define __syscall_emscripten4(n,a,b,c,d) __syscall##n(__scc(a),__scc(b),__scc(c),__scc(d), 0, 0, 0)
-#define __syscall_emscripten5(n,a,b,c,d,e) __syscall##n(__scc(a),__scc(b),__scc(c),__scc(d),__scc(e), 0, 0)
-#define __syscall_emscripten6(n,a,b,c,d,e,f) __syscall##n(__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f), 0)
+#define __syscall_emscripten0(n) __syscall##n()
+#define __syscall_emscripten1(n,a) __syscall##n(__scc(a))
+#define __syscall_emscripten2(n,a,b) __syscall##n(__scc(a),__scc(b))
+#define __syscall_emscripten3(n,a,b,c) __syscall##n(__scc(a),__scc(b),__scc(c))
+#define __syscall_emscripten4(n,a,b,c,d) __syscall##n(__scc(a),__scc(b),__scc(c),__scc(d))
+#define __syscall_emscripten5(n,a,b,c,d,e) __syscall##n(__scc(a),__scc(b),__scc(c),__scc(d),__scc(e))
+#define __syscall_emscripten6(n,a,b,c,d,e,f) __syscall##n(__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f))
 #define __syscall_emscripten7(n,a,b,c,d,e,f,g) __syscall##n(__scc(a),__scc(b),__scc(c),__scc(d),__scc(e),__scc(f),__scc(g))
 #endif // __EMSCRIPTEN__
 
