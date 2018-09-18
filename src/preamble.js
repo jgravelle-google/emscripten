@@ -2453,20 +2453,25 @@ function integrateWasmJS() {
     env = fixImports(env);
 
     // import table
-    if (!env['table']) {
+#if WASM_BACKEND
+    var tableImport = '__indirect_function_table';
+#else // WASM_BACKEND
+    var tableImport = 'table';
+#endif // WASM_BACKEND
+    if (!env[tableImport]) {
       var TABLE_SIZE = Module['wasmTableSize'];
       if (TABLE_SIZE === undefined) TABLE_SIZE = 1024; // works in binaryen interpreter at least
       var MAX_TABLE_SIZE = Module['wasmMaxTableSize'];
       if (typeof WebAssembly === 'object' && typeof WebAssembly.Table === 'function') {
         if (MAX_TABLE_SIZE !== undefined) {
-          env['table'] = new WebAssembly.Table({ 'initial': TABLE_SIZE, 'maximum': MAX_TABLE_SIZE, 'element': 'anyfunc' });
+          env[tableImport] = new WebAssembly.Table({ 'initial': TABLE_SIZE, 'maximum': MAX_TABLE_SIZE, 'element': 'anyfunc' });
         } else {
-          env['table'] = new WebAssembly.Table({ 'initial': TABLE_SIZE, element: 'anyfunc' });
+          env[tableImport] = new WebAssembly.Table({ 'initial': TABLE_SIZE, element: 'anyfunc' });
         }
       } else {
-        env['table'] = new Array(TABLE_SIZE); // works in binaryen interpreter at least
+        env[tableImport] = new Array(TABLE_SIZE); // works in binaryen interpreter at least
       }
-      Module['wasmTable'] = env['table'];
+      Module['wasmTable'] = env[tableImport];
     }
 
     if (!env['memoryBase']) {

@@ -1898,10 +1898,9 @@ class Building(object):
         '--no-entry',
         '--allow-undefined',
         '--import-memory',
-        '--export',
-        '__wasm_call_ctors',
-        '--export',
-        '__data_end',
+        '--import-table',
+        '--export', '__wasm_call_ctors',
+        '--export', '__data_end',
         '--lto-O%d' % lto_level,
     ] + args
 

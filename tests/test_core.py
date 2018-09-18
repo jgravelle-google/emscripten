@@ -6707,6 +6707,22 @@ def process(filename):
       self.set_setting('EMULATED_FUNCTION_POINTERS', 1)
       self.do_run_from_file(src, expected)
 
+  def test_js_add_function(self):
+    test_path = path_from_root('tests', 'interop')
+    src, expected = (os.path.join(test_path, s) for s in ('test_js_add_function.cpp', 'test_js_add_function.out'))
+    post_js = os.path.join(test_path, 'test_js_add_function_post.js')
+    self.emcc_args += ['--pre-js', post_js]
+
+    print('reserved')
+    self.set_setting('INVOKE_RUN', 0)
+    self.set_setting('RESERVED_FUNCTION_POINTERS', 10)
+    self.do_run_from_file(src, expected)
+
+    print('emulated')
+    self.set_setting('RESERVED_FUNCTION_POINTERS', 0)
+    self.set_setting('EMULATED_FUNCTION_POINTERS', 1)
+    self.do_run_from_file(src, expected)
+
   def test_getFuncWrapper_sig_alias(self):
     src = r'''
     #include <stdio.h>
