@@ -2096,6 +2096,41 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
         if output_file != '-':
           assert(os.path.exists(output_file))
 
+          # em-import tool + append to custom section
+          # cmd = get_clang_command([input_file])
+          # cmd[0] = '/s/wbin/em-import'
+          cmd = [shared.LLVM_EM_IMPORT, input_file]
+          proc = shared.check_call(cmd, stdout=PIPE, check=False)
+          print('file:', input_file, 'proc:',proc)
+          data = [ord(c) for c in proc.stdout]
+          def custom_section_binary(section_name, data):
+            # TODO: replace custom section writer with llvm-objcopy
+            def leb_u32(value):
+              leb = []
+              while True:
+                byte = value & 0x7f
+                value >>= 7
+                if value == 0:
+                  leb.append(byte)
+                  break
+                else:
+                  leb.append(byte | 0x80)
+              return leb
+            def str_encode(text):
+              return leb_u32(len(text)) + [ord(c) for c in text]
+            encoded_name = str_encode(section_name)
+            binary_size = len(data) + len(encoded_name)
+            size_leb = leb_u32(binary_size)
+            return (
+              [0] + # custom section
+              size_leb + # payload_len
+              encoded_name +
+              data
+            )
+          binary = custom_section_binary('em-import', data)
+          with open(output_file, 'ab') as f:
+            f.write(bytearray(binary))
+
       # First, generate LLVM bitcode. For each input file, we get base.o with bitcode
       for i, input_file in input_files:
         file_ending = get_file_suffix(input_file)

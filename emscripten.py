@@ -2260,13 +2260,17 @@ def emscript_wasm_backend(infile, outfile, memfile, temp_files, DEBUG):
 
   asm_consts, asm_const_funcs = create_asm_consts_wasm(forwarded_json, metadata)
   em_js_funcs = create_em_js(forwarded_json, metadata)
+  em_import_funcs = create_em_import(forwarded_json, metadata)
   asm_const_pairs = ['%s: %s' % (key, value) for key, value in asm_consts]
   asm_const_map = 'var ASM_CONSTS = {\n  ' + ',  \n '.join(asm_const_pairs) + '\n};\n'
   pre = pre.replace(
     '// === Body ===',
     ('// === Body ===\n\n' + asm_const_map +
      asstr('\n'.join(asm_const_funcs)) +
-     '\n'.join(em_js_funcs) + '\n'))
+     '\n'.join(em_js_funcs) +
+     '\n'.join(em_import_funcs) +
+     '\n'))
+
   pre = apply_table(pre)
   outfile.write(pre)
   pre = None
@@ -2442,6 +2446,50 @@ def create_em_js(forwarded_json, metadata):
     forwarded_json['Functions']['libraryFunctions'][name] = 1
 
   return em_js_funcs
+
+
+def create_em_import(forwarded_json, metadata):
+  import_list = metadata.get('emImports', [])
+  if not import_list:
+    return []
+
+  em_import_funcs = [
+    # runtime funcs go here
+  ]
+  for item in import_list:
+    importName = item['importName']
+    className = item['className']
+    name = item['name']
+    args = item['args']
+    retType = item['retType']
+
+    print('em import: {} {} {} {}'.format(importName, name, retType, args))
+
+    param_names = ['raw_arg{}'.format(i) for i in range(len(args))]
+    arg_names = []
+    body = '{\n'
+    for i, arg in enumerate(args):
+      arg_name = 'arg{}'.format(i)
+      arg_names.append(arg_name)
+      read_func = {
+        'char*': 'readStr',
+      }.get(arg, '')
+      body += '    var {} = {}(raw_arg{});\n'.format(arg_name, read_func, i)
+
+    call = '{}.prototype.{}.apply(arg0, [{}])'.format(
+      className, name, ', '.join(arg_names[1:]))
+    if retType == 'void':
+      body += '    {};\n'.format(call)
+    else:
+      body += '    var ret = {};\n'.format(call)
+    body += '}\n'
+
+    func = 'function {}({}) {}'.format(importName, ', '.join(param_names), asstr(body))
+    print('em import:', func)
+    em_import_funcs.append(func)
+    forwarded_json['Functions']['libraryFunctions'][importName] = 1
+
+  return em_import_funcs
 
 
 def add_standard_wasm_imports(send_items_map):
@@ -2719,6 +2767,7 @@ def load_metadata_wasm(metadata_raw, DEBUG):
     'initializers': [],
     'exports': [],
     'namedGlobals': {},
+    'emImports': {},
     'emJsFuncs': {},
     'asmConsts': {},
     'invokeFuncs': [],
