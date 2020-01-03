@@ -2203,6 +2203,8 @@ def emscript_wasm_backend(infile, outfile, memfile, temp_files, DEBUG):
   if DEBUG:
     logger.debug('emscript: js compiler glue')
 
+  em_import_funcs = create_em_import(metadata)
+
   if DEBUG:
     t = time.time()
   glue, forwarded_data = compile_settings(temp_files)
@@ -2260,7 +2262,6 @@ def emscript_wasm_backend(infile, outfile, memfile, temp_files, DEBUG):
 
   asm_consts, asm_const_funcs = create_asm_consts_wasm(forwarded_json, metadata)
   em_js_funcs = create_em_js(forwarded_json, metadata)
-  em_import_funcs = create_em_import(forwarded_json, metadata)
   asm_const_pairs = ['%s: %s' % (key, value) for key, value in asm_consts]
   asm_const_map = 'var ASM_CONSTS = {\n  ' + ',  \n '.join(asm_const_pairs) + '\n};\n'
   pre = pre.replace(
@@ -2448,23 +2449,26 @@ def create_em_js(forwarded_json, metadata):
   return em_js_funcs
 
 
-def create_em_import(forwarded_json, metadata):
-  import_list = metadata.get('emImports', [])
+def create_em_import(metadata):
+  import_list = metadata['emImports']
   if not import_list:
     return []
 
-  em_import_funcs = [
-    # runtime funcs go here
-  ]
+  em_import_funcs = []
   for item in import_list:
-    importName = item['importName']
-    className = item['className']
-    name = item['name']
+    kind = item['kind']
+    import_name = item.get('importName', '') # JS class name
+    class_name = item.get('className', '') # C++ mangled function name
+    name = '_' + item['name'] # JS function name
     args = item['args']
-    retType = item['retType']
+    ret_type = item['retType']
 
-    print('em import: {} {} {} {}'.format(importName, name, retType, args))
+    print('em import: {} {} {} {} {}'.format(kind, import_name, class_name, name, ret_type, args))
+    print(args)
 
+    if kind != 'func':
+      # this param as arg0
+      args = ['struct JSObject'] + args
     param_names = ['raw_arg{}'.format(i) for i in range(len(args))]
     arg_names = []
     body = '{\n'
@@ -2472,22 +2476,58 @@ def create_em_import(forwarded_json, metadata):
       arg_name = 'arg{}'.format(i)
       arg_names.append(arg_name)
       read_func = {
-        'char*': 'readStr',
+        'char *': 'readStr',
       }.get(arg, '')
+      if arg.startswith('struct '):
+        read_func = 'ptrToRef'
       body += '    var {} = {}(raw_arg{});\n'.format(arg_name, read_func, i)
 
-    call = '{}.prototype.{}.apply(arg0, [{}])'.format(
-      className, name, ', '.join(arg_names[1:]))
-    if retType == 'void':
+    if kind == 'method':
+      call = '{}.prototype.{}.apply(arg0, [{}])'.format(
+        class_name, import_name, ', '.join(arg_names[1:]))
+    elif kind == 'constructor':
+      call = 'new {}({})'.format(class_name, ', '.join(arg_names[1:]))
+    elif kind == 'func':
+      call = '{}.apply(null, [{}])'.format(import_name, ', '.join(arg_names))
+    elif kind == 'set':
+      # TODO: actual setter property
+      call = 'arg0.{} = arg1'.format(import_name)
+    elif kind == 'get':
+      # TODO: actual getter property
+      call = 'arg0.{}'.format(import_name)
+    else:
+      assert False, 'Unexpected kind: {}'.format(kind)
+
+    if ret_type == 'void':
       body += '    {};\n'.format(call)
     else:
       body += '    var ret = {};\n'.format(call)
     body += '}\n'
 
-    func = 'function {}({}) {}'.format(importName, ', '.join(param_names), asstr(body))
-    print('em import:', func)
+    func = 'function {}({}) {}'.format(name, ', '.join(param_names), asstr(body))
+    if kind != 'method':
+      print(func)
     em_import_funcs.append(func)
-    forwarded_json['Functions']['libraryFunctions'][importName] = 1
+    shared.Settings.IMPLEMENTED_FUNCTIONS.append(name)
+
+  if em_import_funcs:
+    # only include runtime functions if we have any em_imports
+    em_import_funcs += ["""
+  const refCache = [undefined];
+  function refToIdx(val) {
+    const idx = refCache.length;
+    refCache.push(val);
+    return idx;
+  }
+  function idxToRef(idx) {
+    return refCache[idx];
+  }
+  function ptrToRef(ptr) {
+    const idx = HEAP32[ptr >> 2];
+    return idxToRef(idx);
+  }
+"""
+    ]
 
   return em_import_funcs
 
@@ -2767,7 +2807,7 @@ def load_metadata_wasm(metadata_raw, DEBUG):
     'initializers': [],
     'exports': [],
     'namedGlobals': {},
-    'emImports': {},
+    'emImports': [],
     'emJsFuncs': {},
     'asmConsts': {},
     'invokeFuncs': [],

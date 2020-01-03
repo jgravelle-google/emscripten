@@ -7084,6 +7084,7 @@ someweirdtext
 
   def test_embind_2(self):
     self.emcc_args += ['--bind', '--post-js', 'post.js']
+    self.emcc_args += ['-s', 'DISABLE_EXCEPTION_CATCHING=0']
     create_test_file('post.js', '''
       function printLerp() {
           out('lerp ' + Module.lerp(100, 200, 66) + '.');

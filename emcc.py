@@ -2097,8 +2097,6 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
           assert(os.path.exists(output_file))
 
           # em-import tool + append to custom section
-          # cmd = get_clang_command([input_file])
-          # cmd[0] = '/s/wbin/em-import'
           cmd = [shared.LLVM_EM_IMPORT, input_file]
           proc = shared.check_call(cmd, stdout=PIPE, check=False)
           print('file:', input_file, 'proc:',proc)
