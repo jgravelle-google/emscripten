@@ -2476,10 +2476,13 @@ def create_em_import(metadata):
       arg_name = 'arg{}'.format(i)
       arg_names.append(arg_name)
       read_func = {
-        'char *': 'readStr',
+        'char *': 'UTF8ToString',
       }.get(arg, '')
       if arg.startswith('struct '):
-        read_func = 'ptrToRef'
+        if i == 0 and kind != 'func':
+          read_func = 'ptrToRef'
+        else:
+          read_func = 'idxToRef'
       body += '    var {} = {}(raw_arg{});\n'.format(arg_name, read_func, i)
 
     if kind == 'method':
@@ -2498,10 +2501,20 @@ def create_em_import(metadata):
     else:
       assert False, 'Unexpected kind: {}'.format(kind)
 
-    if ret_type == 'void':
+    if kind == 'constructor':
+      body += '    var obj = {};\n'.format(call)
+      body += '    var idx = refToIdx(obj);\n'.format(call)
+      body += '    HEAP32[raw_arg0 >> 2] = idx;\n'
+      body += '    return raw_arg0;\n'
+    elif ret_type == 'void':
       body += '    {};\n'.format(call)
     else:
       body += '    var ret = {};\n'.format(call)
+      write_func = {
+      }.get(ret_type, '')
+      if ret_type.startswith('struct '):
+        write_func = 'refToIdx'
+      body += '    return {}(ret);\n'.format(write_func)
     body += '}\n'
 
     func = 'function {}({}) {}'.format(name, ', '.join(param_names), asstr(body))
@@ -2526,8 +2539,19 @@ def create_em_import(metadata):
     const idx = HEAP32[ptr >> 2];
     return idxToRef(idx);
   }
+
+  function jsGetGlobal(str) {
+    return window[str];
+  }
+
+  // boy how what a hack
+  function __ZN10Uint8Array3setEih(arrPtr, idx, val) {
+    var arr = ptrToRef(arrPtr);
+    arr[idx] = val;
+  }
 """
     ]
+    shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10Uint8Array3setEih')
 
   return em_import_funcs
 
