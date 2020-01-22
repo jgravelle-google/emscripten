@@ -2477,11 +2477,14 @@ def create_em_import(metadata):
       arg_names.append(arg_name)
       read_func = {
         'char *': 'UTF8ToString',
+        'const char *': 'UTF8ToString',
       }.get(arg, '')
       if arg.startswith('struct '):
         if i == 0 and kind != 'func':
+          # method `this` is passed as a pointer
           read_func = 'ptrToRef'
         else:
+          # JSObject structs as ordinary arguments are passed by value, aka index
           read_func = 'idxToRef'
       body += '    var {} = {}(raw_arg{});\n'.format(arg_name, read_func, i)
 
@@ -2549,9 +2552,15 @@ def create_em_import(metadata):
     var arr = ptrToRef(arrPtr);
     arr[idx] = val;
   }
+  function __ZN10emscripten8JSObject12setImplToStrEPKc(self, ptr) {
+    var str = UTF8ToString(ptr);
+    var idx = refToIdx(str);
+    HEAP32[self >> 2] = idx;
+  }
 """
     ]
     shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10Uint8Array3setEih')
+    shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10emscripten8JSObject12setImplToStrEPKc')
 
   return em_import_funcs
 

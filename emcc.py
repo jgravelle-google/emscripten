@@ -2077,7 +2077,8 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
         logger.debug('compiling source file: ' + input_file)
         output_file = get_object_filename(input_file)
         temp_files.append((i, output_file))
-        cmd = get_clang_command([input_file]) + ['-c', '-o', output_file]
+        db_file = in_temp('compile_commands.json')
+        cmd = get_clang_command([input_file]) + ['-c', '-o', output_file, '-MJ', db_file]
         if shared.Settings.WASM_BACKEND and shared.Settings.RELOCATABLE:
           cmd.append('-fPIC')
           cmd.append('-fvisibility=default')
@@ -2095,9 +2096,11 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
         shared.check_call(cmd)
         if output_file != '-':
           assert(os.path.exists(output_file))
+          db_json = open(db_file, 'r').read()
+          open(db_file, 'w').write('[' + db_json + ']')
 
           # em-import tool + append to custom section
-          cmd = [shared.LLVM_EM_IMPORT, input_file]
+          cmd = [shared.LLVM_EM_IMPORT, input_file, '-p', temp_dir]
           proc = shared.check_call(cmd, stdout=PIPE, check=False)
           print('file:', input_file, 'proc:',proc)
           data = [ord(c) for c in proc.stdout]
