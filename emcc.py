@@ -2101,7 +2101,9 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
 
           # em-import tool + append to custom section
           cmd = [shared.LLVM_EM_IMPORT, input_file, '-p', temp_dir]
-          proc = shared.check_call(cmd, stdout=PIPE, check=False)
+          fake_env = os.environ.copy()
+          fake_env['LD_LIBRARY_PATH'] = fake_env.get('LD_LIBRARY_PATH', '') + ';/s/work/llvm-out/lib'
+          proc = shared.check_call(cmd, stdout=PIPE, check=False, env=fake_env)
           print('file:', input_file, 'proc:',proc)
           data = [ord(c) for c in proc.stdout]
           def custom_section_binary(section_name, data):
