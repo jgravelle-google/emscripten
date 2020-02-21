@@ -34,12 +34,89 @@ static cl::opt<std::string>
 namespace {
 using namespace clang;
 
+template <typename T>
+void write_vec(std::vector<T> const& vec, llvm::raw_ostream &os) {
+  os.write(vec.size()); // TODO: LEB
+  for (auto &elem : vec) {
+    elem.write(os);
+  }
+}
+void write_str(std::string const& str, llvm::raw_ostream &os) {
+  os.write(str.size()); // TODO: LEB
+  os.write(str.c_str(), str.size());
+}
+
+enum ITTypeKind {
+  IT_u8 = 0x00,
+  IT_s8 = 0x01,
+  IT_u16 = 0x02,
+  IT_s16 = 0x03,
+  IT_u32 = 0x04,
+  IT_s32 = 0x05,
+  IT_u64 = 0x06,
+  IT_s64 = 0x07,
+  IT_f32 = 0x08,
+  IT_f64 = 0x09,
+  IT_string = 0x0a,
+  IT_ref = 0x0b,
+};
+enum ITInstrKind {
+  // Lifting
+  II_liftInt,
+  II_liftFloat,
+  II_memToString,
+  II_indexToRef,
+
+  // Middle-end?
+  II_call,
+
+  // Lowering
+  II_lowerInt,
+  II_lowerFloat,
+  II_stringToMem,
+  II_refToIndex,
+};
+struct ITType {
+  ITTypeKind kind;
+
+  void write(llvm::raw_ostream &os) const {
+    os.write(kind);
+  }
+};
+struct ITInstr {
+  ITInstrKind kind;
+  std::vector<unsigned char> immediates;
+
+  void write(llvm::raw_ostream &os) const {
+    os.write(kind);
+    for (auto imm : immediates) {
+      os.write(imm);
+    }
+  }
+};
+struct ITFuncDecl {
+  std::string name;
+  std::vector<ITType> params;
+  std::vector<ITType> results;
+  std::vector<ITInstr> instrs;
+
+  void write(llvm::raw_ostream &os) const {
+    write_str(name, os);
+    write_vec(params, os);
+    write_vec(results, os);
+    write_vec(instrs, os);
+  }
+};
+
 class MyConsumer : public ASTConsumer,
                    public RecursiveASTVisitor<MyConsumer> {
   typedef RecursiveASTVisitor<MyConsumer> base;
   llvm::raw_ostream *os;
   std::error_code EC;
   std::unique_ptr<ASTNameGenerator> mangler;
+
+  std::vector<ITFuncDecl> funcDecls;
+
 public:
   MyConsumer() {
     if (Outfile != "") {
@@ -49,6 +126,9 @@ public:
     }
   }
   ~MyConsumer() {
+    if (funcDecls.size()) {
+      write_vec(funcDecls, *os);
+    }
     if (Outfile != "") {
       delete os;
     }
@@ -72,23 +152,53 @@ public:
           auto kind = pair.first;
           auto importName = pair.second;
           auto T = FD->getType()->castAs<FunctionProtoType>();
-          *os << "(" << kind;
-          if (kind != "func") {
-            assert(className != "");
-            *os << " \"" << className << "\"";
-          }
-          *os << " " << mangler->getName(FD);
-          if (kind != "constructor") {
-            *os << " \"" << importName << "\"";
-          }
-          *os << " (";
+          ITFuncDecl decl;
+          decl.name = mangler->getName(FD);
+
+          // Lower params
           for (unsigned i = 0; i < T->getNumParams(); ++i) {
-            auto Arg = T->getParamType(i);
-            if (i != 0) { *os << " "; }
-            *os << '"' << Arg.getAsString() << '"';
+            auto Arg = T->getParamType(i).getCanonicalType();
+            std::string ArgStr = Arg.getAsString();
+            if (ArgStr == "const char *") {
+              decl.params.push_back({ IT_string });
+              decl.instrs.push_back({ II_memToString, {}});
+            } else {
+              llvm_unreachable(("Unimplemented param: " + ArgStr).c_str());
+            }
           }
-          auto Ret = T->getReturnType();
-          *os << ") \"" << Ret.getAsString() << "\")\n";
+
+          // Do function call
+          decl.instrs.push_back({ II_call, {}});
+
+          // Lift result
+          auto Ret = T->getReturnType().getCanonicalType();
+          std::string RetStr = Ret.getAsString();
+          if (RetStr == "void") {
+            // no result
+          } else if (RetStr == "struct emscripten::JSObject") {
+            decl.results.push_back({ IT_ref });
+            decl.instrs.push_back({ II_refToIndex, {}});
+          } else {
+            llvm_unreachable(("Unimplemented result: " + RetStr).c_str());
+          }
+          funcDecls.push_back(decl);
+          // *os << "(" << kind;
+          // if (kind != "func") {
+          //   assert(className != "");
+          //   *os << " \"" << className << "\"";
+          // }
+          // *os << " " << mangler->getName(FD);
+          // if (kind != "constructor") {
+          //   *os << " \"" << importName << "\"";
+          // }
+          // *os << " (";
+          // for (unsigned i = 0; i < T->getNumParams(); ++i) {
+          //   auto Arg = T->getParamType(i);
+          //   if (i != 0) { *os << " "; }
+          //   *os << '"' << Arg.getAsString() << '"';
+          // }
+          // auto Ret = T->getReturnType();
+          // *os << ") \"" << Ret.getAsString() << "\")\n";
         }
       }
     }

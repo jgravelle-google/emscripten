@@ -2107,6 +2107,7 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
           proc = shared.check_call(cmd, stdout=PIPE, check=False, env=fake_env)
           print('file:', input_file, 'proc:',proc)
           data = [ord(c) for c in proc.stdout]
+          print('data:', data, len(data))
           def custom_section_binary(section_name, data):
             # TODO: replace custom section writer with llvm-objcopy
             def leb_u32(value):
@@ -2131,7 +2132,8 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
               encoded_name +
               data
             )
-          binary = custom_section_binary('em-import', data)
+          # TODO: read this back out in emscripten.py, using llvm-objcopy?
+          binary = custom_section_binary('interface-types', data)
           with open(output_file, 'ab') as f:
             f.write(bytearray(binary))
 
