@@ -2530,12 +2530,55 @@ def create_em_import(temp_files, outfile):
     print("DECL", name, params, results, instrs)
 
     # generate JS function
-    # TODO
-#   import_list = metadata['emImports']
-#   if not import_list:
-#     return []
+    name = '_' + name
+    param_names = ['p' + str(x) for x in range(len(params))]
+    func = 'function {}({}) {{\n'.format(name, ', '.join(param_names))
+    regs = []
+    next_reg = 0
+    for instr in instrs:
+      cur_reg = 'r{}'.format(next_reg)
+      next_reg += 1
+      func += '  var {} = '.format(cur_reg)
+      print(instr, regs, cur_reg)
+      if instr[0] == 'argGet':
+        func += 'p{}'.format(instr[1])
+        regs.append(cur_reg)
+      elif instr[0] == 'callExport':
+        assert(instr[1] == 'em_strlen') # TODO: oh gosh oh jeez
+        nargs = 1
+        assert(len(regs) >= nargs)
+        args = regs[-nargs:]
+        regs = regs[:-nargs]
+        func += 'Module["{}"]({})'.format('_' + instr[1], ', '.join(args))
+        regs.append(cur_reg)
+      elif instr[0] == 'callImport':
+        nargs = 1 # TODO: ah jeez oh no
+        assert(len(regs) >= nargs)
+        args = regs[-nargs:]
+        regs = regs[:-nargs]
+        func += '{}({})'.format(instr[1], ', '.join(args))
+        regs.append(cur_reg)
+      elif instr[0] == 'memToString':
+        assert(len(regs) >= 2)
+        args = regs[-2:]
+        regs = regs[:-2]
+        func += 'UTF8ToString({})'.format(', '.join(args))
+        regs.append(cur_reg)
+      elif instr[0] == 'liftInt':
+        func += regs[-1]
+        regs[-1] = cur_reg
+      elif instr[0] == 'refToIndex':
+        func += 'refToIdx({})'.format(regs[-1])
+        regs[-1] = cur_reg
+      else:
+        assert(False)
+      func += '; // {}\n'.format(instr)
+    func += '  return {};\n}}'.format(regs[-1])
 
-#   em_import_funcs = []
+    print(func)
+    em_import_funcs.append(func)
+    shared.Settings.IMPLEMENTED_FUNCTIONS.append(name)
+
 #   for item in import_list:
 #     kind = item['kind']
 #     import_name = item.get('importName', '') # JS class name
@@ -2604,46 +2647,44 @@ def create_em_import(temp_files, outfile):
 #     func = 'function {}({}) {}'.format(name, ', '.join(param_names), asstr(body))
 #     if kind != 'method':
 #       print(func)
-#     em_import_funcs.append(func)
-#     shared.Settings.IMPLEMENTED_FUNCTIONS.append(name)
 
-#   if em_import_funcs:
-#     # only include runtime functions if we have any em_imports
-#     em_import_funcs += ["""
-#   const refCache = [undefined];
-#   function refToIdx(val) {
-#     const idx = refCache.length;
-#     refCache.push(val);
-#     return idx;
-#   }
-#   function idxToRef(idx) {
-#     return refCache[idx];
-#   }
-#   function ptrToRef(ptr) {
-#     const idx = HEAP32[ptr >> 2];
-#     return idxToRef(idx);
-#   }
+  if em_import_funcs:
+    # only include runtime functions if we have any em_imports
+    em_import_funcs += ["""
+  const refCache = [undefined];
+  function refToIdx(val) {
+    const idx = refCache.length;
+    refCache.push(val);
+    return idx;
+  }
+  function idxToRef(idx) {
+    return refCache[idx];
+  }
+  function ptrToRef(ptr) {
+    const idx = HEAP32[ptr >> 2];
+    return idxToRef(idx);
+  }
 
-#   function jsGetGlobal(str) {
-#     return window[str];
-#   }
+  function jsGetGlobal(str) {
+    return window[str];
+  }
 
-#   // boy how what a hack
-#   function __ZN10Uint8Array3setEih(arrPtr, idx, val) {
-#     var arr = ptrToRef(arrPtr);
-#     arr[idx] = val;
-#   }
-#   function __ZN10emscripten8JSObject12setImplToStrEPKc(self, ptr) {
-#     var str = UTF8ToString(ptr);
-#     var idx = refToIdx(str);
-#     HEAP32[self >> 2] = idx;
-#   }
-# """
-#     ]
-#     shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10Uint8Array3setEih')
-#     shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10emscripten8JSObject12setImplToStrEPKc')
+  // boy how what a hack
+  function __ZN10Uint8Array3setEih(arrPtr, idx, val) {
+    var arr = ptrToRef(arrPtr);
+    arr[idx] = val;
+  }
+  function __ZN10emscripten8JSObject12setImplToStrEPKc(self, ptr) {
+    var str = UTF8ToString(ptr);
+    var idx = refToIdx(str);
+    HEAP32[self >> 2] = idx;
+  }
+"""
+    ]
+    shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10Uint8Array3setEih')
+    shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10emscripten8JSObject12setImplToStrEPKc')
 
-#   return em_import_funcs
+  return em_import_funcs
 
 
 def add_standard_wasm_imports(send_items_map):

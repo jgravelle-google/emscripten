@@ -192,7 +192,10 @@ public:
           }
 
           // Do function call
-          decl.instrs.push_back({ II_callImport, encode_string(decl.name)});
+          // TODO: this should be decl.name, not importName, but there's no better
+          // place to put importName for the time being. The real way to do this
+          // will be as separate side-channel information for emscripten
+          decl.instrs.push_back({ II_callImport, encode_string(importName.str())});
 
           // Lift result
           auto Ret = T->getReturnType().getCanonicalType();
