@@ -2203,7 +2203,7 @@ def emscript_wasm_backend(infile, outfile, memfile, temp_files, DEBUG):
   if DEBUG:
     logger.debug('emscript: js compiler glue')
 
-  em_import_funcs = create_em_import(metadata)
+  em_import_funcs = create_em_import(temp_files, outfile)
 
   if DEBUG:
     t = time.time()
@@ -2449,120 +2449,201 @@ def create_em_js(forwarded_json, metadata):
   return em_js_funcs
 
 
-def create_em_import(metadata):
-  import_list = metadata['emImports']
-  if not import_list:
-    return []
+def create_em_import(temp_files, outfile):
+  # read custom section out of wasm file
+  basename = shared.unsuffixed(outfile.name)
+  wasm = basename + '.wasm'
+  print('EM IMPORTING: ', wasm)
+  with temp_files.get_file('.txt') as section_file:
+    cmd = ['/s/wbin/llvm-objcopy', wasm,
+      '--dump-section=interface-types=%s' % section_file]
+    print(cmd)
+    shared.check_call(cmd, check=False)
+    data = open(section_file, 'r').read()
+  data = [ord(c) for c in data]
+  print(data)
 
+  # parse custom section
+  counter = {'i': 0}
+  TYPES = [
+    'u8', 's8', 'u16', 's16', 'u32', 's32', 'u64', 's64',
+    'f32', 'f64', 'string', 'ref',
+  ]
+  INSTRS = [
+    'liftInt',
+    'liftFloat',
+    'memToString',
+    'indexToRef',
+
+    'argGet',
+    'callExport',
+    'callImport',
+
+    'lowerInt',
+    'lowerFloat',
+    'stringToMem',
+    'refToIndex',
+  ]
+  def read_byte():
+    ret = data[counter['i']]
+    counter['i'] += 1
+    return ret
+  def read_leb():
+    # TODO: real LEB
+    return read_byte()
+  def read_str():
+    n = read_leb()
+    ret = ''
+    for _ in range(n):
+      ret += chr(read_byte())
+    return ret
+  def read_type():
+    n = read_byte()
+    assert(0 <= n < len(TYPES))
+    return TYPES[n]
+  def read_instr():
+    n = read_byte()
+    assert(0 <= n <= len(INSTRS))
+    instr = INSTRS[n]
+    imms = []
+    if instr == 'argGet':
+      imms.append(read_leb())
+    elif instr == 'callExport':
+      imms.append(read_str())
+    elif instr == 'callImport':
+      imms.append(read_str())
+    return [instr] + imms
+  def read_vec(f):
+    n = read_leb()
+    ret = []
+    for _ in range(n):
+      ret.append(f())
+    return ret
+  n_decls = read_leb()
   em_import_funcs = []
-  for item in import_list:
-    kind = item['kind']
-    import_name = item.get('importName', '') # JS class name
-    class_name = item.get('className', '') # C++ mangled function name
-    name = '_' + item['name'] # JS function name
-    args = item['args']
-    ret_type = item['retType']
+  for _ in range(n_decls):
+    # parse function declaration
+    name = read_str()
+    params = read_vec(read_type)
+    results = read_vec(read_type)
+    instrs = read_vec(read_instr)
+    print("DECL", name, params, results, instrs)
 
-    print('em import: {} {} {} {} {}'.format(kind, import_name, class_name, name, ret_type, args))
-    print(args)
+    # generate JS function
+    # TODO
+#   import_list = metadata['emImports']
+#   if not import_list:
+#     return []
 
-    if kind != 'func':
-      # this param as arg0
-      args = ['struct JSObject'] + args
-    param_names = ['raw_arg{}'.format(i) for i in range(len(args))]
-    arg_names = []
-    body = '{\n'
-    for i, arg in enumerate(args):
-      arg_name = 'arg{}'.format(i)
-      arg_names.append(arg_name)
-      read_func = {
-        'char *': 'UTF8ToString',
-        'const char *': 'UTF8ToString',
-      }.get(arg, '')
-      if arg.startswith('struct '):
-        if i == 0 and kind != 'func':
-          # method `this` is passed as a pointer
-          read_func = 'ptrToRef'
-        else:
-          # JSObject structs as ordinary arguments are passed by value, aka index
-          read_func = 'idxToRef'
-      body += '    var {} = {}(raw_arg{});\n'.format(arg_name, read_func, i)
+#   em_import_funcs = []
+#   for item in import_list:
+#     kind = item['kind']
+#     import_name = item.get('importName', '') # JS class name
+#     class_name = item.get('className', '') # C++ mangled function name
+#     name = '_' + item['name'] # JS function name
+#     args = item['args']
+#     ret_type = item['retType']
 
-    if kind == 'method':
-      call = '{}.prototype.{}.apply(arg0, [{}])'.format(
-        class_name, import_name, ', '.join(arg_names[1:]))
-    elif kind == 'constructor':
-      call = 'new {}({})'.format(class_name, ', '.join(arg_names[1:]))
-    elif kind == 'func':
-      call = '{}.apply(null, [{}])'.format(import_name, ', '.join(arg_names))
-    elif kind == 'set':
-      # TODO: actual setter property
-      call = 'arg0.{} = arg1'.format(import_name)
-    elif kind == 'get':
-      # TODO: actual getter property
-      call = 'arg0.{}'.format(import_name)
-    else:
-      assert False, 'Unexpected kind: {}'.format(kind)
+#     print('em import: {} {} {} {} {}'.format(kind, import_name, class_name, name, ret_type, args))
+#     print(args)
 
-    if kind == 'constructor':
-      body += '    var obj = {};\n'.format(call)
-      body += '    var idx = refToIdx(obj);\n'.format(call)
-      body += '    HEAP32[raw_arg0 >> 2] = idx;\n'
-      body += '    return raw_arg0;\n'
-    elif ret_type == 'void':
-      body += '    {};\n'.format(call)
-    else:
-      body += '    var ret = {};\n'.format(call)
-      write_func = {
-      }.get(ret_type, '')
-      if ret_type.startswith('struct '):
-        write_func = 'refToIdx'
-      body += '    return {}(ret);\n'.format(write_func)
-    body += '}\n'
+#     if kind != 'func':
+#       # this param as arg0
+#       args = ['struct JSObject'] + args
+#     param_names = ['raw_arg{}'.format(i) for i in range(len(args))]
+#     arg_names = []
+#     body = '{\n'
+#     for i, arg in enumerate(args):
+#       arg_name = 'arg{}'.format(i)
+#       arg_names.append(arg_name)
+#       read_func = {
+#         'char *': 'UTF8ToString',
+#         'const char *': 'UTF8ToString',
+#       }.get(arg, '')
+#       if arg.startswith('struct '):
+#         if i == 0 and kind != 'func':
+#           # method `this` is passed as a pointer
+#           read_func = 'ptrToRef'
+#         else:
+#           # JSObject structs as ordinary arguments are passed by value, aka index
+#           read_func = 'idxToRef'
+#       body += '    var {} = {}(raw_arg{});\n'.format(arg_name, read_func, i)
 
-    func = 'function {}({}) {}'.format(name, ', '.join(param_names), asstr(body))
-    if kind != 'method':
-      print(func)
-    em_import_funcs.append(func)
-    shared.Settings.IMPLEMENTED_FUNCTIONS.append(name)
+#     if kind == 'method':
+#       call = '{}.prototype.{}.apply(arg0, [{}])'.format(
+#         class_name, import_name, ', '.join(arg_names[1:]))
+#     elif kind == 'constructor':
+#       call = 'new {}({})'.format(class_name, ', '.join(arg_names[1:]))
+#     elif kind == 'func':
+#       call = '{}.apply(null, [{}])'.format(import_name, ', '.join(arg_names))
+#     elif kind == 'set':
+#       # TODO: actual setter property
+#       call = 'arg0.{} = arg1'.format(import_name)
+#     elif kind == 'get':
+#       # TODO: actual getter property
+#       call = 'arg0.{}'.format(import_name)
+#     else:
+#       assert False, 'Unexpected kind: {}'.format(kind)
 
-  if em_import_funcs:
-    # only include runtime functions if we have any em_imports
-    em_import_funcs += ["""
-  const refCache = [undefined];
-  function refToIdx(val) {
-    const idx = refCache.length;
-    refCache.push(val);
-    return idx;
-  }
-  function idxToRef(idx) {
-    return refCache[idx];
-  }
-  function ptrToRef(ptr) {
-    const idx = HEAP32[ptr >> 2];
-    return idxToRef(idx);
-  }
+#     if kind == 'constructor':
+#       body += '    var obj = {};\n'.format(call)
+#       body += '    var idx = refToIdx(obj);\n'.format(call)
+#       body += '    HEAP32[raw_arg0 >> 2] = idx;\n'
+#       body += '    return raw_arg0;\n'
+#     elif ret_type == 'void':
+#       body += '    {};\n'.format(call)
+#     else:
+#       body += '    var ret = {};\n'.format(call)
+#       write_func = {
+#       }.get(ret_type, '')
+#       if ret_type.startswith('struct '):
+#         write_func = 'refToIdx'
+#       body += '    return {}(ret);\n'.format(write_func)
+#     body += '}\n'
 
-  function jsGetGlobal(str) {
-    return window[str];
-  }
+#     func = 'function {}({}) {}'.format(name, ', '.join(param_names), asstr(body))
+#     if kind != 'method':
+#       print(func)
+#     em_import_funcs.append(func)
+#     shared.Settings.IMPLEMENTED_FUNCTIONS.append(name)
 
-  // boy how what a hack
-  function __ZN10Uint8Array3setEih(arrPtr, idx, val) {
-    var arr = ptrToRef(arrPtr);
-    arr[idx] = val;
-  }
-  function __ZN10emscripten8JSObject12setImplToStrEPKc(self, ptr) {
-    var str = UTF8ToString(ptr);
-    var idx = refToIdx(str);
-    HEAP32[self >> 2] = idx;
-  }
-"""
-    ]
-    shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10Uint8Array3setEih')
-    shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10emscripten8JSObject12setImplToStrEPKc')
+#   if em_import_funcs:
+#     # only include runtime functions if we have any em_imports
+#     em_import_funcs += ["""
+#   const refCache = [undefined];
+#   function refToIdx(val) {
+#     const idx = refCache.length;
+#     refCache.push(val);
+#     return idx;
+#   }
+#   function idxToRef(idx) {
+#     return refCache[idx];
+#   }
+#   function ptrToRef(ptr) {
+#     const idx = HEAP32[ptr >> 2];
+#     return idxToRef(idx);
+#   }
 
-  return em_import_funcs
+#   function jsGetGlobal(str) {
+#     return window[str];
+#   }
+
+#   // boy how what a hack
+#   function __ZN10Uint8Array3setEih(arrPtr, idx, val) {
+#     var arr = ptrToRef(arrPtr);
+#     arr[idx] = val;
+#   }
+#   function __ZN10emscripten8JSObject12setImplToStrEPKc(self, ptr) {
+#     var str = UTF8ToString(ptr);
+#     var idx = refToIdx(str);
+#     HEAP32[self >> 2] = idx;
+#   }
+# """
+#     ]
+#     shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10Uint8Array3setEih')
+#     shared.Settings.IMPLEMENTED_FUNCTIONS.append('__ZN10emscripten8JSObject12setImplToStrEPKc')
+
+#   return em_import_funcs
 
 
 def add_standard_wasm_imports(send_items_map):

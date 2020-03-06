@@ -17,7 +17,7 @@ add_executable(em-import
     # llvm_config(LLVM_SYSTEM_LIBS "--system-libs")
 set(LLVM_CXXFLAGS "-I/usr/local/google/home/jgravelle/code/wasm/waterfall/src/work/llvm-project/llvm/include -I/usr/local/google/home/jgravelle/code/wasm/waterfall/src/work/llvm-project/clang/include -I/usr/local/google/home/jgravelle/code/wasm/waterfall/src/work/llvm-out/include -I/usr/local/google/home/jgravelle/code/wasm/waterfall/src/work/llvm-out/tools/clang/include -std=c++14   -fno-exceptions -fno-rtti -D_GNU_SOURCE -D_DEBUG -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS")
 set(LLVM_LDFLAGS "-L/usr/local/google/home/jgravelle/code/wasm/waterfall/src/work/llvm-out/lib")
-set(LLVM_LIBS "-lLLVM-10git")
+set(LLVM_LIBS "-lLLVM-11git")
 set(LLVM_LIBDIR "/usr/local/google/home/jgravelle/code/wasm/waterfall/src/work/llvm-out/lib")
 set(LLVM_INCLUDE_DIR "/usr/local/google/home/jgravelle/code/wasm/waterfall/src/work/llvm-project/llvm/include")
 set(CLANG_INCLUDE_DIR "/usr/local/google/home/jgravelle/code/wasm/waterfall/src/work/llvm-project/clang/include")

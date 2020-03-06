@@ -68,7 +68,9 @@ enum ITInstrKind {
   II_indexToRef,
 
   // Middle-end?
-  II_call,
+  II_argGet,
+  II_callExport,
+  II_callImport,
 
   // Lowering
   II_lowerInt,
@@ -107,6 +109,16 @@ struct ITFuncDecl {
     write_vec(instrs, os);
   }
 };
+
+std::vector<unsigned char> encode_string(std::string str) {
+  std::vector<unsigned char> result;
+  // TODO: LEB
+  result.push_back(str.size());
+  for (unsigned i = 0; i < str.size(); ++i) {
+    result.push_back(str[i]);
+  }
+  return result;
+}
 
 class MyConsumer : public ASTConsumer,
                    public RecursiveASTVisitor<MyConsumer> {
@@ -155,20 +167,32 @@ public:
           ITFuncDecl decl;
           decl.name = mangler->getName(FD);
 
-          // Lower params
+          // Lift params
           for (unsigned i = 0; i < T->getNumParams(); ++i) {
             auto Arg = T->getParamType(i).getCanonicalType();
             std::string ArgStr = Arg.getAsString();
             if (ArgStr == "const char *") {
               decl.params.push_back({ IT_string });
+
+              // ptr
+              decl.instrs.push_back({ II_argGet, {i}}); // TODO: LEB-encode {i}
+              // len
+              decl.instrs.push_back({ II_argGet, {i}});
+              decl.instrs.push_back({ II_callExport, encode_string("em_strlen")});
+              // convert
               decl.instrs.push_back({ II_memToString, {}});
+            } else if (ArgStr == "int") {
+              decl.params.push_back({ IT_s32 });
+
+              decl.instrs.push_back({ II_argGet, {i}});
+              decl.instrs.push_back({ II_liftInt, {}});
             } else {
               llvm_unreachable(("Unimplemented param: " + ArgStr).c_str());
             }
           }
 
           // Do function call
-          decl.instrs.push_back({ II_call, {}});
+          decl.instrs.push_back({ II_callImport, encode_string(decl.name)});
 
           // Lift result
           auto Ret = T->getReturnType().getCanonicalType();
@@ -182,23 +206,6 @@ public:
             llvm_unreachable(("Unimplemented result: " + RetStr).c_str());
           }
           funcDecls.push_back(decl);
-          // *os << "(" << kind;
-          // if (kind != "func") {
-          //   assert(className != "");
-          //   *os << " \"" << className << "\"";
-          // }
-          // *os << " " << mangler->getName(FD);
-          // if (kind != "constructor") {
-          //   *os << " \"" << importName << "\"";
-          // }
-          // *os << " (";
-          // for (unsigned i = 0; i < T->getNumParams(); ++i) {
-          //   auto Arg = T->getParamType(i);
-          //   if (i != 0) { *os << " "; }
-          //   *os << '"' << Arg.getAsString() << '"';
-          // }
-          // auto Ret = T->getReturnType();
-          // *os << ") \"" << Ret.getAsString() << "\")\n";
         }
       }
     }
@@ -212,7 +219,7 @@ public:
           auto pair = data.split(":");
           auto className = pair.second;
           for (auto *sub : TD->decls()) {
-            doTheThing(sub, className);
+            doTheThing(sub, className.str());
           }
         }
       }
