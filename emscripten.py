@@ -2450,6 +2450,8 @@ def create_em_js(forwarded_json, metadata):
 
 
 def create_em_import(temp_files, outfile):
+  if not shared.Settings.EXPERIMENTAL_EM_IMPORT:
+    return []
   # read custom section out of wasm file
   basename = shared.unsuffixed(outfile.name)
   wasm = basename + '.wasm'
@@ -2458,7 +2460,11 @@ def create_em_import(temp_files, outfile):
     cmd = ['/s/wbin/llvm-objcopy', wasm,
       '--dump-section=interface-types=%s' % section_file]
     print(cmd)
-    shared.check_call(cmd, check=False)
+    try:
+      shared.check_call(cmd)
+    except Exception:
+      # if anything goes wrong, assume no section
+      return []
     data = open(section_file, 'r').read()
   data = [ord(c) for c in data]
   print(data)

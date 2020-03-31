@@ -2094,7 +2094,7 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
           cmd.append('-emit-llvm')
         shared.print_compiler_stage(cmd)
         shared.check_call(cmd)
-        if output_file != '-':
+        if output_file != '-' and shared.Settings.EXPERIMENTAL_EM_IMPORT:
           assert(os.path.exists(output_file))
           db_json = open(db_file, 'r').read()
           open(db_file, 'w').write('[' + db_json + ']')
@@ -2133,9 +2133,10 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
               data
             )
           # TODO: read this back out in emscripten.py, using llvm-objcopy?
-          binary = custom_section_binary('interface-types', data)
-          with open(output_file, 'ab') as f:
-            f.write(bytearray(binary))
+          if data:
+            binary = custom_section_binary('interface-types', data)
+            with open(output_file, 'ab') as f:
+              f.write(bytearray(binary))
 
       # First, generate LLVM bitcode. For each input file, we get base.o with bitcode
       for i, input_file in input_files:

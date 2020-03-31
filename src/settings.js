@@ -1755,6 +1755,10 @@ var TEST_MEMORY_GROWTH_FAILS = 0;
 // code).
 var ASM_PRIMITIVE_VARS = ['__THREW__', 'threwValue', 'setjmpId', 'tempInt', 'tempBigInt', 'tempBigIntS', 'tempValue', 'tempDouble', 'tempFloat', 'tempDoublePtr', 'STACKTOP', 'STACK_MAX']
 
+// Experimental feature: EM_IMPORT
+// Currently not fully supported
+var EXPERIMENTAL_EM_IMPORT = 0;
+
 // Legacy settings that have been removed or renamed.
 // For renamed settings the format is:
 // [OLD_NAME, NEW_NAME]
