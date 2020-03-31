@@ -12,6 +12,7 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Option/OptTable.h"
+#include "llvm/Support/LEB128.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/TargetSelect.h"
@@ -34,16 +35,62 @@ static cl::opt<std::string>
 namespace {
 using namespace clang;
 
+class CustomSection {
+  using Bytes = std::vector<unsigned char>;
+  std::string name;
+  Bytes buffer;
+
+  static Bytes encodeULEB128(unsigned n) {
+    Bytes ret(5);
+    unsigned len = ::encodeULEB128(n, ret.data());
+    ret.resize(len);
+    return ret;
+  }
+
+  static void writeOut(Bytes bytes, llvm::raw_ostream &os) {
+    for (auto b : bytes) {
+      os.write(b);
+    }
+  }
+public:
+  CustomSection(std::string name_) : name(name_) {}
+
+  void write(unsigned char byte) {
+    buffer.push_back(byte);
+  }
+  void write(const char* str, unsigned len) {
+    for (unsigned i = 0; i < len; ++i) {
+      buffer.push_back(str[i]);
+    }
+  }
+  void writeULEB(unsigned n) {
+    auto bytes = encodeULEB128(n);
+    for (auto b : bytes) {
+      buffer.push_back(b);
+    }
+  }
+
+  void writeOut(llvm::raw_ostream &os) {
+    os.write(0); // custom section id
+    auto nameSize = encodeULEB128(name.size());
+    ::encodeULEB128(buffer.size() + name.size() + nameSize.size(), os); // payload size
+    writeOut(nameSize, os);
+    os.write(name.c_str(), name.size());
+    writeOut(buffer, os);
+  }
+};
+
+
 template <typename T>
-void write_vec(std::vector<T> const& vec, llvm::raw_ostream &os) {
-  os.write(vec.size()); // TODO: LEB
+void write_vec(std::vector<T> const& vec, CustomSection &cs) {
+  cs.writeULEB(vec.size());
   for (auto &elem : vec) {
-    elem.write(os);
+    elem.write(cs);
   }
 }
-void write_str(std::string const& str, llvm::raw_ostream &os) {
-  os.write(str.size()); // TODO: LEB
-  os.write(str.c_str(), str.size());
+void write_str(std::string const& str, CustomSection &cs) {
+  cs.writeULEB(str.size());
+  cs.write(str.c_str(), str.size());
 }
 
 enum ITTypeKind {
@@ -81,18 +128,18 @@ enum ITInstrKind {
 struct ITType {
   ITTypeKind kind;
 
-  void write(llvm::raw_ostream &os) const {
-    os.write(kind);
+  void write(CustomSection &cs) const {
+    cs.write(kind);
   }
 };
 struct ITInstr {
   ITInstrKind kind;
   std::vector<unsigned char> immediates;
 
-  void write(llvm::raw_ostream &os) const {
-    os.write(kind);
+  void write(CustomSection &cs) const {
+    cs.write(kind);
     for (auto imm : immediates) {
-      os.write(imm);
+      cs.write(imm);
     }
   }
 };
@@ -102,11 +149,11 @@ struct ITFuncDecl {
   std::vector<ITType> results;
   std::vector<ITInstr> instrs;
 
-  void write(llvm::raw_ostream &os) const {
-    write_str(name, os);
-    write_vec(params, os);
-    write_vec(results, os);
-    write_vec(instrs, os);
+  void write(CustomSection &cs) const {
+    write_str(name, cs);
+    write_vec(params, cs);
+    write_vec(results, cs);
+    write_vec(instrs, cs);
   }
 };
 
@@ -138,9 +185,11 @@ public:
     }
   }
   ~MyConsumer() {
+    CustomSection itSection("interface-types");
     if (funcDecls.size()) {
-      write_vec(funcDecls, *os);
+      write_vec(funcDecls, itSection);
     }
+    itSection.writeOut(*os);
     if (Outfile != "") {
       delete os;
     }

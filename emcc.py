@@ -2108,35 +2108,10 @@ There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR P
           print('file:', input_file, 'proc:',proc)
           data = [ord(c) for c in proc.stdout]
           print('data:', data, len(data))
-          def custom_section_binary(section_name, data):
-            # TODO: replace custom section writer with llvm-objcopy
-            def leb_u32(value):
-              leb = []
-              while True:
-                byte = value & 0x7f
-                value >>= 7
-                if value == 0:
-                  leb.append(byte)
-                  break
-                else:
-                  leb.append(byte | 0x80)
-              return leb
-            def str_encode(text):
-              return leb_u32(len(text)) + [ord(c) for c in text]
-            encoded_name = str_encode(section_name)
-            binary_size = len(data) + len(encoded_name)
-            size_leb = leb_u32(binary_size)
-            return (
-              [0] + # custom section
-              size_leb + # payload_len
-              encoded_name +
-              data
-            )
           # TODO: read this back out in emscripten.py, using llvm-objcopy?
           if data:
-            binary = custom_section_binary('interface-types', data)
             with open(output_file, 'ab') as f:
-              f.write(bytearray(binary))
+              f.write(bytearray(data))
 
       # First, generate LLVM bitcode. For each input file, we get base.o with bitcode
       for i, input_file in input_files:
